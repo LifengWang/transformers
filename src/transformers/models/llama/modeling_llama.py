@@ -52,7 +52,7 @@ from ...utils import (
 )
 from .configuration_llama import LlamaConfig
 
-
+from torch.nn.attention.flex_attention import flex_attention, create_block_mask
 logger = logging.get_logger(__name__)
 
 _CHECKPOINT_FOR_DOC = "meta-llama/Llama-2-7b-hf"
@@ -746,24 +746,33 @@ class LlamaPagedAttention(LlamaAttention):
         query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
 
         if q_len > 1:
-            causal_mask = attention_mask
-            if attention_mask is not None:
-                causal_mask = causal_mask[:, :, :, : key_states.shape[-2]]
-            is_causal = True if causal_mask is None and q_len > 1 else False
+            # causal_mask = attention_mask
+            # if attention_mask is not None:
+            #     causal_mask = causal_mask[:, :, :, : key_states.shape[-2]]
+            # is_causal = True if causal_mask is None and q_len > 1 else False
             if past_key_value is not None:
                 # sin and cos are specific to RoPE models; cache_position needed for the static cache
                 cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
                 past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
-            key_states = repeat_kv(key_states, self.num_key_value_groups)
-            value_states = repeat_kv(value_states, self.num_key_value_groups)
-            attn_output = torch.nn.functional.scaled_dot_product_attention(
+            # key_states = repeat_kv(key_states, self.num_key_value_groups)
+            # value_states = repeat_kv(value_states, self.num_key_value_groups)
+
+            attn_output = flex_attention(
                 query_states,
                 key_states,
                 value_states,
-                attn_mask=causal_mask,
-                dropout_p=self.attention_dropout if self.training else 0.0,
-                is_causal=is_causal,
+                enable_gqa=True if self.num_key_value_groups != 1 else False,
+                block_mask=past_key_value.block_mask_first_token,
+                return_lse=output_attentions,
             )
+            # attn_output = torch.nn.functional.scaled_dot_product_attention(
+            #     query_states,
+            #     key_states,
+            #     value_states,
+            #     attn_mask=causal_mask,
+            #     dropout_p=self.attention_dropout if self.training else 0.0,
+            #     is_causal=is_causal,
+            # )
 
         else:
             if past_key_value is not None:
@@ -774,7 +783,7 @@ class LlamaPagedAttention(LlamaAttention):
                 )
             # key_states = repeat_kv(key_states, self.num_key_value_groups)
             # value_states = repeat_kv(value_states, self.num_key_value_groups)
-            from torch.nn.attention.flex_attention import flex_attention
+            # from torch.nn.attention.flex_attention import flex_attention
 
             attn_output = flex_attention(
                 query_states,

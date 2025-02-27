@@ -2152,10 +2152,16 @@ class PagedAttentionCache(Cache):
         self.max_cache_len = max_cache_len
         block_mask = create_block_mask(noop_mask, batch_size, 1, 1, max_cache_len, device=device, BLOCK_SIZE=page_size)
         self.block_mask = self.paged_attentions[0].convert_logical_block_mask(block_mask)
+
         self.score_mods = []
         self.score_mods.append(None)
         self.score_mods.append(None)
-
+        def causal_mask(b, h, q, kv):
+            return q >= kv
+        
+        self.block_mask_first_token = create_block_mask(
+            causal_mask, batch_size, config.num_attention_heads, 1024, 1024, device="cpu"
+        ) 
     def reset(self) -> None:
         """Resets the cache values while preserving the objects."""
 
