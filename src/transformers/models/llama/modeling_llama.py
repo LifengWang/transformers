@@ -756,13 +756,15 @@ class LlamaPagedAttention(LlamaAttention):
                 past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
             # key_states = repeat_kv(key_states, self.num_key_value_groups)
             # value_states = repeat_kv(value_states, self.num_key_value_groups)
-
+            block_mask_first_token = create_block_mask(
+                past_key_value.mask_func_for_first_token, bsz, self.num_key_value_heads, q_len, q_len, device="cpu"
+            ) 
             attn_output = flex_attention(
                 query_states,
                 key_states,
                 value_states,
                 enable_gqa=True if self.num_key_value_groups != 1 else False,
-                block_mask=past_key_value.block_mask_first_token,
+                block_mask=block_mask_first_token,
                 return_lse=output_attentions,
             )
             # attn_output = torch.nn.functional.scaled_dot_product_attention(

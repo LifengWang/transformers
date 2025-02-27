@@ -2159,9 +2159,8 @@ class PagedAttentionCache(Cache):
         def causal_mask(b, h, q, kv):
             return q >= kv
         
-        self.block_mask_first_token = create_block_mask(
-            causal_mask, batch_size, config.num_attention_heads, 1024, 1024, device="cpu"
-        ) 
+        self.mask_func_for_first_token = causal_mask
+
     def reset(self) -> None:
         """Resets the cache values while preserving the objects."""
 
