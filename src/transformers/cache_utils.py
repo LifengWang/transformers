@@ -379,6 +379,10 @@ class DynamicCache(Cache):
         self._seen_tokens = 0  # Used in `generate` to keep tally of how many tokens the cache has seen
         self.key_cache: List[torch.Tensor] = []
         self.value_cache: List[torch.Tensor] = []
+        def causal_mask(b, h, q, kv):
+            return q >= kv
+        
+        self.mask_func_for_first_token = causal_mask
 
     def __getitem__(self, layer_idx: int) -> List[Tuple[torch.Tensor]]:
         """
