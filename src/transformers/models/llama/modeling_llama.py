@@ -273,6 +273,8 @@ def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
     hidden_states = hidden_states[:, :, None, :, :].expand(batch, num_key_value_heads, n_rep, slen, head_dim)
     return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
 
+def causal_mask_f(b, h, q, kv):
+    return q >= kv
 
 class LlamaAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
@@ -305,7 +307,7 @@ class LlamaAttention(nn.Module):
 
         # TODO (joao): remove in v4.46 (RoPE is computed in the model, not in the decoder layers)
         self.rotary_emb = LlamaRotaryEmbedding(config=self.config)
-
+        self.causal_mask_f = causal_mask_f
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -757,7 +759,7 @@ class LlamaPagedAttention(LlamaAttention):
             # key_states = repeat_kv(key_states, self.num_key_value_groups)
             # value_states = repeat_kv(value_states, self.num_key_value_groups)
             block_mask_first_token = create_block_mask(
-                past_key_value.mask_func_for_first_token, bsz, self.num_key_value_heads, q_len, q_len, device="cpu"
+                self.causal_mask_f, bsz, self.num_key_value_heads, q_len, q_len, device="cpu"
             ) 
             attn_output = flex_attention(
                 query_states,
