@@ -2403,7 +2403,10 @@ class GenerationMixin:
                 should_convert_cache = True
             if should_convert_cache:
                 result.past_key_values = result.past_key_values.to_legacy_cache()
-        return result, latency_list
+        if self.config.no_token_latency:
+            return result
+        else:
+            return result, latency_list
 
     def _has_unfinished_sequences(
         self,
